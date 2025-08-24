@@ -5,7 +5,7 @@ from datetime import datetime, date, timedelta
 import plotly.express as px
 import os
 from google.cloud import bigquery
-from google.oauth2 import service_account # AJUSTE STREAMLIT CLOUD
+from google.oauth2 import service_account
 from google.api_core import exceptions
 import calendar
 import re
@@ -26,7 +26,7 @@ WEBHOOK_RELATORIO = st.secrets["WEBHOOK_RELATORIO"]
 WEBHOOK_HIPOTESES = st.secrets["WEBHOOK_HIPOTESES"]
 BQ_TABLE_FBCRTV = st.secrets["BQ_TABLE_FBCRTV"]
 
-# AJUSTE STREAMLIT CLOUD: Autenticação e criação do cliente BigQuery
+# Autenticação e criação do cliente BigQuery
 try:
     credentials_info = st.secrets["gcp_service_account"]
     credentials = service_account.Credentials.from_service_account_info(credentials_info)
@@ -132,8 +132,14 @@ def clean_and_round_payload(d):
         return round(float(d), 2)
     return d
 
-# AJUSTE STREAMLIT CLOUD: A função agora recebe o cliente BQ como argumento
-@st.cache_data(ttl=3600)
+# AJUSTE: Adicionado o parâmetro hash_funcs para lidar com os objetos não-hasheáveis
+@st.cache_data(
+    ttl=3600,
+    hash_funcs={
+        "google.cloud.bigquery.client.Client": lambda c: c.project,
+        dict: lambda d: tuple(sorted(d.items()))
+    }
+)
 def fetch_data_from_bigquery(client, dataset_id, table_id,
                              column_mapping,
                              start_date_dt_func, end_date_dt_func,
@@ -1117,7 +1123,7 @@ with tab_colunas:
             fig_hist_bar.update_layout(
                 plot_bgcolor='rgba(42,42,42,1)', paper_bgcolor='rgba(0,0,0,0)',
                 font_color='white', yaxis_visible=False, legend_title_text='',
-                xaxis=dict(showgrid=False)
+                xaxis_title=None
             )
             
             for trace in fig_hist_bar.data:
@@ -1148,7 +1154,7 @@ with tab_linhas:
             fig_hist_line.update_layout(
                 plot_bgcolor='rgba(42,42,42,1)', paper_bgcolor='rgba(0,0,0,0)',
                 font_color='white', yaxis_visible=False, legend_title_text='',
-                xaxis=dict(showgrid=False)
+                xaxis_title=None
             )
             fig_hist_line.update_traces(text=None)
             for trace in fig_hist_line.data:
