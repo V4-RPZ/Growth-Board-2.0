@@ -13,21 +13,27 @@ import requests
 import json
 from dateutil.relativedelta import relativedelta
 
-# --- CARREGA AS VARIÁVEIS DE AMBIENTE DO ARQUIVO .env ---
-load_dotenv()
+# --- CONFIGURAÇÕES GERAIS (Lendo dos segredos do Streamlit) ---
+BQ_PROJECT_ID_GCP = st.secrets["BQ_PROJECT_ID_GCP"]
+BQ_DATASET_ID = st.secrets["BQ_DATASET_ID"]
+BQ_TABLE_GKW = st.secrets["BQ_TABLE_GKW"]
+BQ_TABLE_GADS = st.secrets["BQ_TABLE_GADS"]
+BQ_TABLE_FBADS = st.secrets["BQ_TABLE_FBADS"]
+BQ_TABLE_LEADS = st.secrets["BQ_TABLE_LEADS"]
+URL_PLANILHA_2 = st.secrets["URL_PLANILHA_2"]
+WEBHOOK_CHECKIN = st.secrets["WEBHOOK_CHECKIN"]
+WEBHOOK_RELATORIO = st.secrets["WEBHOOK_RELATORIO"]
+WEBHOOK_HIPOTESES = st.secrets["WEBHOOK_HIPOTESES"]
+BQ_TABLE_FBCRTV = st.secrets["BQ_TABLE_FBCRTV"]
 
-# --- CONFIGURAÇÕES GERAIS (Lendo das variáveis de ambiente) ---
-BQ_PROJECT_ID_GCP = os.getenv("BQ_PROJECT_ID_GCP")
-BQ_DATASET_ID = os.getenv("BQ_DATASET_ID")
-BQ_TABLE_GKW = os.getenv("BQ_TABLE_GKW")
-BQ_TABLE_GADS = os.getenv("BQ_TABLE_GADS")
-BQ_TABLE_FBADS = os.getenv("BQ_TABLE_FBADS")
-BQ_TABLE_LEADS = os.getenv("BQ_TABLE_LEADS")
-URL_PLANILHA_2 = os.getenv("URL_PLANILHA_2")
-WEBHOOK_CHECKIN = os.getenv("WEBHOOK_CHECKIN")
-WEBHOOK_RELATORIO = os.getenv("WEBHOOK_RELATORIO")
-WEBHOOK_HIPOTESES = os.getenv("WEBHOOK_HIPOTESES")
-BQ_TABLE_FBCRTV = os.getenv("BQ_TABLE_FBCRTV")
+# Autenticação e criação do cliente BigQuery
+try:
+    credentials_info = st.secrets["gcp_service_account"]
+    credentials = service_account.Credentials.from_service_account_info(credentials_info)
+    bq_client = bigquery.Client(credentials=credentials, project=BQ_PROJECT_ID_GCP)
+except (KeyError, Exception) as e:
+    st.error(f"Erro ao autenticar com o Google Cloud. Verifique seus segredos no Streamlit. Erro: {e}")
+    st.stop()
 
 
 HR_SEPARATOR_STYLE = "<hr style='border-top: 2px solid #D33682; margin-top: 25px; margin-bottom: 25px;'>"
@@ -38,14 +44,9 @@ MESES_PT_ABBR = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", 
 
 # --- MAPEAMENTO DE COLUNAS ---
 COLUNAS_BQ_LEADS_MAP = {
-    "Data": "data_criacao",
-    "data_fechamento": "data_fechamento_pl",
-    "Qualificação": "qualificacao_pl",
-    "utm_term": "utm_term_pl",
-    "utm_campaign": "utm_campaign_pl",
-    "utm_source": "utm_source_pl",
-    "Valor": "real_faturamento_venda_pl",
-    "project_id": "project_id_pl"
+    "Data": "data_criacao", "data_fechamento": "data_fechamento_pl", "Qualificação": "qualificacao_pl",
+    "utm_term": "utm_term_pl", "utm_campaign": "utm_campaign_pl", "utm_source": "utm_source_pl",
+    "Valor": "real_faturamento_venda_pl", "project_id": "project_id_pl"
 }
 
 COLUNAS_PLANILHA_2_MAP = {
@@ -92,7 +93,7 @@ METRIC_COLOR_MAP = {
     "CAC": "#d62728", "Faturamento": "#ff7f0e", "ROAS": "#8c564b",
     "ROI": "#e377c2", "Growth Rate": "#7f7f7f", "CPL": "#bcbd22",
     "Leads": "#17becf", "CPMQL": "#ff9896", "MQL": "#98df8a", "Taxa de MQL": "#c5b0d5",
-    "T.M. fechamento": "#dbdb8d", "Ticket médio": "#9edae5"
+    "Ticket Médio": "#aec7e8", "T.M. Fechamento": "#ffbb78"
 }
 
 # --- FUNÇÕES DE FORMATAÇÃO E PROCESSAMENTO ---
@@ -132,7 +133,13 @@ def clean_and_round_payload(d):
         return round(float(d), 2)
     return d
 
-@st.cache_data(ttl=3600)
+@st.cache_data(
+    ttl=3600,
+    hash_funcs={
+        "google.cloud.bigquery.client.Client": lambda c: c.project,
+        dict: lambda d: tuple(sorted(d.items()))
+    }
+)
 def fetch_data_from_bigquery(client, dataset_id, table_id,
                              column_mapping,
                              start_date_dt_func, end_date_dt_func,
@@ -247,38 +254,36 @@ def carregar_planilha_gs(url_planilha, colunas_map, nome_coluna_data_renomeada, 
 
 def render_persistent_sidebar():
     st.sidebar.markdown("<div style='text-align: center;'><img src='https://i.postimg.cc/dVjMB4jK/LOGO-RPZ-BRANCO.png' width='250'></div>", unsafe_allow_html=True)
-    st.sidebar.header("Filtros")
-
-    if st.sidebar.button("Limpar Cache de Dados"):
-        st.cache_data.clear()
-        st.sidebar.success("O cache foi limpo! Os dados serão recarregados.")
-        st.rerun()
-
+    st.sidebar.button("Limpar Cache de Dados", on_click=st.cache_data.clear)
+    
+    # AJUSTE: Formulário na sidebar para agrupar filtros e adiar a atualização
     with st.sidebar.form(key='filtros_form'):
         st.header("Filtros Gerais")
         client_map_dict = st.session_state.get('client_map_dict', {})
         if not client_map_dict:
             st.sidebar.warning("Mapeamento de clientes não encontrado.")
+            st.form_submit_button("Atualizar") # Botão dummy para evitar erro
             return None, None, None, None, None, None, None
         
         lista_clientes = sorted(list(client_map_dict.keys()))
         selected_client = st.selectbox("Selecione o Cliente", options=lista_clientes, key="selected_client")
         start_date = st.date_input("Data Inicial", key="start_date")
         end_date = st.date_input("Data Final", key="end_date")
+        conferidor_mode = st.toggle("Conferidor", key="conferidor_mode")
         
-        st.header("Filtros do Histórico")
+        st.sidebar.markdown("---")
+        st.sidebar.header("Filtros do Histórico")
+        
         available_months = [(date.today() - relativedelta(months=i)) for i in range(24)]
         month_options = {f"{MESES_PT[m.month-1]} {m.year}": m.replace(day=1) for m in available_months}
         
         selected_start_month_str = st.selectbox("Mês Inicial", options=list(month_options.keys()), index=3, key="hist_start_month")
         selected_end_month_str = st.selectbox("Mês Final", options=list(month_options.keys()), index=0, key="hist_end_month")
 
-        hist_start_date = month_options[selected_start_month_str]
-        hist_end_date = (month_options[selected_end_month_str] + relativedelta(months=1)) - timedelta(days=1)
-        
-        conferidor_mode = st.toggle("Modo Conferidor", key="conferidor_mode")
-        
         submitted = st.form_submit_button("Atualizar")
+
+    hist_start_date = month_options[selected_start_month_str]
+    hist_end_date = (month_options[selected_end_month_str] + relativedelta(months=1)) - timedelta(days=1)
 
     if start_date and end_date and start_date > end_date:
         st.sidebar.error("A 'Data Inicial' não pode ser posterior à 'Data Final'.")
@@ -789,18 +794,15 @@ else:
 st.markdown("<h2 style='text-align: center;'>Fontes de Tráfego</h2>", unsafe_allow_html=True)
 if not df_pl_filtrado_intervalo.empty and "utm_source_pl" in df_pl_filtrado_intervalo.columns:
     df_source_chart = df_pl_filtrado_intervalo.copy()
-    
-    # Adiciona a coluna de dias para fechar para os cálculos
     if 'data_fechamento_pl' in df_source_chart.columns:
         df_source_chart['dias_para_fechar'] = (df_source_chart['data_fechamento_pl'] - df_source_chart['data_criacao']).dt.days
     else:
         df_source_chart['dias_para_fechar'] = np.nan
-        
+    
     source_map = {'fb': 'Facebook', 'ig': 'Instagram', 'an': 'Audience', 'bio': 'Bio', 'g': 'Search', 's': 'Partners', 'd': 'Display', 'ytv': 'Youtube Video', 'yt': 'Youtube', 't': 'Video Partners'}
     color_map = {'Facebook': '#1877F2', 'Instagram': "#F29B18", 'Audience': "#8814D1", 'Bio': "#18CEF2", 'Search': '#34A853', 'Partners': "#D729C0", 'Display': "#EDEA18", 'Youtube Video': "#F30C0C", 'Youtube': '#F30C0C', 'Video Partners': "#885D18", 'Não identificado': "#7E7E7E", 'Nulo': "#B6B6B6"}
     df_source_chart['source_mapped'] = df_source_chart['utm_source_pl'].map(source_map).fillna(df_source_chart['utm_source_pl'].apply(lambda x: 'Nulo' if pd.isna(x) or str(x).lower() in ['nan', '<na>'] else 'Não identificado'))
     
-    # Agregação com as novas métricas
     source_agg = df_source_chart.groupby('source_mapped').agg(
         Leads=('source_mapped', 'size'),
         MQLs=('qualificacao_pl', lambda x: (x == 'MQL').sum()),
@@ -809,40 +811,48 @@ if not df_pl_filtrado_intervalo.empty and "utm_source_pl" in df_pl_filtrado_inte
         TM_Fechamento=('dias_para_fechar', 'mean')
     ).reset_index()
     
-    # Cálculos pós-agregação
-    source_agg['Ticket_Medio'] = (source_agg['Faturamento'] / source_agg['Vendas']).fillna(0)
-    source_agg['Taxa_de_Venda'] = (source_agg['Vendas'] / source_agg['Leads'] * 100).fillna(0)
     source_agg['perc_mql'] = (source_agg['MQLs'] / source_agg['Leads'] * 100).fillna(0)
+    source_agg['Ticket Medio'] = (source_agg['Faturamento'] / source_agg['Vendas']).fillna(0)
+    source_agg['Taxa de Venda'] = (source_agg['Vendas'] / source_agg['Leads'] * 100).fillna(0)
 
     source_counts = df_source_chart['source_mapped'].value_counts(normalize=True).reset_index()
     source_counts.columns = ['source_mapped', 'percentage']
     source_counts['percentage'] *= 100
     source_counts = pd.merge(source_counts, source_agg, on='source_mapped', how='left')
-
+    
     # Formatação para o tooltip
     source_counts['Faturamento_fmt'] = source_counts['Faturamento'].apply(lambda x: format_brazilian(x, "R$ {:,.2f}"))
     source_counts['perc_mql_fmt'] = source_counts['perc_mql'].apply(lambda x: f"{format_brazilian(x, '{:.2f}')}%")
-    source_counts['Ticket_Medio_fmt'] = source_counts['Ticket_Medio'].apply(lambda x: format_brazilian(x, "R$ {:,.2f}"))
-    source_counts['Taxa_de_Venda_fmt'] = source_counts['Taxa_de_Venda'].apply(lambda x: f"{format_brazilian(x, '{:.2f}')}%")
+    source_counts['Ticket_Medio_fmt'] = source_counts['Ticket Medio'].apply(lambda x: format_brazilian(x, "R$ {:,.2f}"))
+    source_counts['Taxa_Venda_fmt'] = source_counts['Taxa de Venda'].apply(lambda x: f"{format_brazilian(x, '{:.2f}')}%")
     source_counts['TM_Fechamento_fmt'] = source_counts['TM_Fechamento'].apply(lambda x: f"{format_brazilian(x, '{:,.1f}')} dias")
 
     source_counts['dummy_y'] = 'Fontes de Tráfego'
     source_counts.sort_values('percentage', ascending=False, inplace=True)
     
-    fig_source = px.bar(source_counts, x='percentage', y='dummy_y', color='source_mapped', orientation='h', height=320, 
-                        text=source_counts.apply(lambda row: f"{row['percentage']:.1f}%" if row['percentage'] > 2 else '', axis=1), 
-                        color_discrete_map=color_map, hover_name='source_mapped', 
-                        custom_data=['Leads', 'MQLs', 'Vendas', 'Faturamento_fmt', 'perc_mql_fmt', 'Ticket_Medio_fmt', 'Taxa_de_Venda_fmt', 'TM_Fechamento_fmt'])
+    custom_data_cols = ['Leads', 'MQLs', 'Vendas', 'Faturamento_fmt', 'perc_mql_fmt', 'Ticket_Medio_fmt', 'Taxa_Venda_fmt', 'TM_Fechamento_fmt']
     
-    fig_source.update_layout(title_text='', xaxis_title="", yaxis_title="", legend_title_text='', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='white', showlegend=True, xaxis=dict(showgrid=False, zeroline=False, showticklabels=True, dtick=5, ticksuffix='%', range=[0, 100], tickmode='linear'), yaxis=dict(showgrid=False, zeroline=False, showticklabels=False), legend=dict(orientation="h", yanchor="bottom", y=-0.7, xanchor="center", x=0.5), margin=dict(b=180), hoverlabel=dict(font=dict(size=16)))
-    
-    hovertemplate = ('<b>%{hovertext}</b><br><br>' +
-                     'Leads: %{customdata[0]} | Vendas: %{customdata[2]}<br>' +
-                     'MQLs: %{customdata[1]} | % MQL: %{customdata[4]}<br>' +
-                     'Faturamento: %{customdata[3]}<br>' +
-                     'Ticket Médio: %{customdata[5]}<br>' +
-                     'Taxa de Venda: %{customdata[6]}<br>' +
-                     'T.M. Fechamento: %{customdata[7]}<extra></extra>')
+    fig_source = px.bar(source_counts, x='percentage', y='dummy_y', color='source_mapped', orientation='h', height=320,
+                        text=source_counts.apply(lambda row: f"{row['percentage']:.1f}%" if row['percentage'] > 2 else '', axis=1),
+                        color_discrete_map=color_map, hover_name='source_mapped', custom_data=custom_data_cols)
+
+    fig_source.update_layout(title_text='', xaxis_title="", yaxis_title="", legend_title_text='', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='white', showlegend=True,
+                            xaxis=dict(showgrid=False, zeroline=False, showticklabels=True, dtick=5, ticksuffix='%', range=[0, 100], tickmode='linear'),
+                            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                            legend=dict(orientation="h", yanchor="bottom", y=-0.7, xanchor="center", x=0.5),
+                            margin=dict(b=180), hoverlabel=dict(font=dict(size=20)))
+
+    hovertemplate = (
+        '<b>%{hovertext}</b><br><br>'
+        'Leads: %{customdata[0]}<br>'
+        'MQLs: %{customdata[1]} (%{customdata[4]})<br>'
+        'Vendas: %{customdata[2]}<br>'
+        'Taxa de Venda: %{customdata[6]}<br>'
+        'Faturamento: %{customdata[3]}<br>'
+        'Ticket Médio: %{customdata[5]}<br>'
+        'T.M. Fechamento: %{customdata[7]}'
+        '<extra></extra>'
+    )
     fig_source.update_traces(textposition='inside', textfont_size=12, textfont_color='white', hovertemplate=hovertemplate)
     
     st.plotly_chart(fig_source, use_container_width=True)
@@ -1161,7 +1171,8 @@ with tab_colunas:
             fig_hist_bar.update_layout(
                 plot_bgcolor='rgba(42,42,42,1)', paper_bgcolor='rgba(0,0,0,0)',
                 font_color='white', yaxis_visible=False, legend_title_text='',
-                xaxis_title=None
+                xaxis_title=None,
+                xaxis=dict(showgrid=False)
             )
             
             for trace in fig_hist_bar.data:
@@ -1192,7 +1203,8 @@ with tab_linhas:
             fig_hist_line.update_layout(
                 plot_bgcolor='rgba(42,42,42,1)', paper_bgcolor='rgba(0,0,0,0)',
                 font_color='white', yaxis_visible=False, legend_title_text='',
-                xaxis_title=None
+                xaxis_title=None,
+                xaxis=dict(showgrid=False)
             )
             fig_hist_line.update_traces(text=None)
             for trace in fig_hist_line.data:
