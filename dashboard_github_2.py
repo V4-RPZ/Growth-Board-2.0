@@ -93,14 +93,13 @@ METRIC_COLOR_MAP = {
     "CAC": "#d62728", "Faturamento": "#ff7f0e", "ROAS": "#8c564b",
     "ROI": "#e377c2", "Growth Rate": "#7f7f7f", "CPL": "#bcbd22",
     "Leads": "#17becf", "CPMQL": "#ff9896", "MQL": "#98df8a", "Taxa de MQL": "#c5b0d5",
-    "Ticket Médio": "#aec7e8", "T.M. Fechamento": "#ffbb78"
+    "Ticket Médio": "#222222", "T.M. Fechamento": "#f4d03f"
 }
 
 # --- FUNÇÕES DE FORMATAÇÃO E PROCESSAMENTO ---
 
 @st.cache_data(ttl=3600)
 def is_valid_image_url(url):
-    """Verifica se uma URL é uma imagem válida fazendo uma requisição HEAD."""
     if not isinstance(url, str) or not url.startswith('http'):
         return False
     try:
@@ -146,7 +145,7 @@ def fetch_data_from_bigquery(client, dataset_id, table_id,
                              date_column_in_bq=None,
                              project_id_api_column_in_bq=None, project_id_api_value_filter=None):
     if not all([client, dataset_id, table_id, column_mapping]):
-        st.warning(f"Configurações do BigQuery incompletas para buscar dados da tabela {table_id}.")
+        st.warning(f"Configurações do BigQuery incompletas para a tabela {table_id}.")
         return pd.DataFrame()
     try:
         project_gcp_id = client.project
@@ -185,19 +184,19 @@ def fetch_data_from_bigquery(client, dataset_id, table_id,
             'real_faturamento_venda_pl': float, 'cost_gkw': float, 'cost_gads': float,
             'Investido_fb_val': float, 'search_budget_lost_is_gads': float, 'search_rank_lost_is_gads': float
         }
-        for col, dtype in numeric_cols.items():
+        for col in numeric_cols.keys():
             if col in df_renamed.columns: df_renamed[col] = pd.to_numeric(df_renamed[col], errors='coerce').fillna(0)
 
         integer_cols = ['impressions_gkw', 'clicks_gkw', 'impressions_gads', 'clicks_gads', 'Impressões_fb_val', 'Cliques_fb_val']
         for col in integer_cols:
              if col in df_renamed.columns: df_renamed[col] = pd.to_numeric(df_renamed[col], errors='coerce').fillna(0).astype(int)
 
-        string_cols_to_convert = [
+        string_cols = [
             'utm_source_pl', 'utm_campaign_pl', 'utm_term_pl', 'campaign_id_gads', 'keyword_text_gkw',
             'campaign_name_gkw', 'ad_group_name_gkw', 'ad_id_gkw', 'campaign_name_gads', 'ad_id_fb',
             'Criativo_fb_ad_name', 'adset_name_fb', 'campaign_name_fb', 'image_url_fbcrtv', 'channel_type_gads'
         ]
-        for col in string_cols_to_convert:
+        for col in string_cols:
             if col in df_renamed.columns: df_renamed[col] = df_renamed[col].astype(str).fillna('')
 
         final_cols_present = [v for k, v in valid_rename_map.items()]
@@ -205,7 +204,7 @@ def fetch_data_from_bigquery(client, dataset_id, table_id,
         return df_final
     except exceptions.GoogleAPICallError as e:
         st.error(f"Erro de API ao consultar o BigQuery para a tabela {table_id}: {e}")
-        st.info("Verifique se o caminho para seu arquivo de credenciais JSON no arquivo .env está correto.")
+        st.info("Verifique se os segredos do Streamlit (gcp_service_account) estão corretos.")
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Erro inesperado ao carregar dados do BigQuery ({table_id}): {e}")
@@ -254,15 +253,20 @@ def carregar_planilha_gs(url_planilha, colunas_map, nome_coluna_data_renomeada, 
 
 def render_persistent_sidebar():
     st.sidebar.markdown("<div style='text-align: center;'><img src='https://i.postimg.cc/dVjMB4jK/LOGO-RPZ-BRANCO.png' width='250'></div>", unsafe_allow_html=True)
-    st.sidebar.button("Limpar Cache de Dados", on_click=st.cache_data.clear)
     
-    # AJUSTE: Formulário na sidebar para agrupar filtros e adiar a atualização
+    if st.sidebar.button("Limpar Cache de Dados"):
+        st.cache_data.clear()
+        st.sidebar.success("O cache foi limpo! Os dados serão recarregados.")
+        st.rerun()
+
+    # AJUSTE: Agrupando filtros em um formulário para evitar recargas automáticas
     with st.sidebar.form(key='filtros_form'):
         st.header("Filtros Gerais")
+        
         client_map_dict = st.session_state.get('client_map_dict', {})
         if not client_map_dict:
-            st.sidebar.warning("Mapeamento de clientes não encontrado.")
-            st.form_submit_button("Atualizar") # Botão dummy para evitar erro
+            st.warning("Mapeamento de clientes não encontrado.")
+            st.form_submit_button("Atualizar") # Botão dummy para permitir a exibição do warning
             return None, None, None, None, None, None, None
         
         lista_clientes = sorted(list(client_map_dict.keys()))
@@ -271,8 +275,8 @@ def render_persistent_sidebar():
         end_date = st.date_input("Data Final", key="end_date")
         conferidor_mode = st.toggle("Conferidor", key="conferidor_mode")
         
-        st.sidebar.markdown("---")
-        st.sidebar.header("Filtros do Histórico")
+        st.markdown("---")
+        st.header("Filtros do Histórico")
         
         available_months = [(date.today() - relativedelta(months=i)) for i in range(24)]
         month_options = {f"{MESES_PT[m.month-1]} {m.year}": m.replace(day=1) for m in available_months}
@@ -280,11 +284,12 @@ def render_persistent_sidebar():
         selected_start_month_str = st.selectbox("Mês Inicial", options=list(month_options.keys()), index=3, key="hist_start_month")
         selected_end_month_str = st.selectbox("Mês Final", options=list(month_options.keys()), index=0, key="hist_end_month")
 
+        hist_start_date = month_options[selected_start_month_str]
+        hist_end_date = (month_options[selected_end_month_str] + relativedelta(months=1)) - timedelta(days=1)
+        
         submitted = st.form_submit_button("Atualizar")
 
-    hist_start_date = month_options[selected_start_month_str]
-    hist_end_date = (month_options[selected_end_month_str] + relativedelta(months=1)) - timedelta(days=1)
-
+    # A lógica de validação e retorno permanece fora do form
     if start_date and end_date and start_date > end_date:
         st.sidebar.error("A 'Data Inicial' não pode ser posterior à 'Data Final'.")
         return selected_client, None, start_date, end_date, conferidor_mode, None, None
@@ -794,15 +799,18 @@ else:
 st.markdown("<h2 style='text-align: center;'>Fontes de Tráfego</h2>", unsafe_allow_html=True)
 if not df_pl_filtrado_intervalo.empty and "utm_source_pl" in df_pl_filtrado_intervalo.columns:
     df_source_chart = df_pl_filtrado_intervalo.copy()
+    
+    # Adiciona a coluna de dias para fechar para o cálculo da nova métrica
     if 'data_fechamento_pl' in df_source_chart.columns:
         df_source_chart['dias_para_fechar'] = (df_source_chart['data_fechamento_pl'] - df_source_chart['data_criacao']).dt.days
     else:
         df_source_chart['dias_para_fechar'] = np.nan
-    
+        
     source_map = {'fb': 'Facebook', 'ig': 'Instagram', 'an': 'Audience', 'bio': 'Bio', 'g': 'Search', 's': 'Partners', 'd': 'Display', 'ytv': 'Youtube Video', 'yt': 'Youtube', 't': 'Video Partners'}
     color_map = {'Facebook': '#1877F2', 'Instagram': "#F29B18", 'Audience': "#8814D1", 'Bio': "#18CEF2", 'Search': '#34A853', 'Partners': "#D729C0", 'Display': "#EDEA18", 'Youtube Video': "#F30C0C", 'Youtube': '#F30C0C', 'Video Partners': "#885D18", 'Não identificado': "#7E7E7E", 'Nulo': "#B6B6B6"}
     df_source_chart['source_mapped'] = df_source_chart['utm_source_pl'].map(source_map).fillna(df_source_chart['utm_source_pl'].apply(lambda x: 'Nulo' if pd.isna(x) or str(x).lower() in ['nan', '<na>'] else 'Não identificado'))
     
+    # Adiciona as novas agregações
     source_agg = df_source_chart.groupby('source_mapped').agg(
         Leads=('source_mapped', 'size'),
         MQLs=('qualificacao_pl', lambda x: (x == 'MQL').sum()),
@@ -810,51 +818,50 @@ if not df_pl_filtrado_intervalo.empty and "utm_source_pl" in df_pl_filtrado_inte
         Faturamento=('real_faturamento_venda_pl', 'sum'),
         TM_Fechamento=('dias_para_fechar', 'mean')
     ).reset_index()
+
+    # Calcula as métricas pós-agregação
+    source_agg['Ticket Médio'] = (source_agg['Faturamento'] / source_agg['Vendas']).fillna(0)
+    source_agg['Taxa de Venda'] = (source_agg['Vendas'] / source_agg['Leads'] * 100).fillna(0)
     
     source_agg['perc_mql'] = (source_agg['MQLs'] / source_agg['Leads'] * 100).fillna(0)
-    source_agg['Ticket Medio'] = (source_agg['Faturamento'] / source_agg['Vendas']).fillna(0)
-    source_agg['Taxa de Venda'] = (source_agg['Vendas'] / source_agg['Leads'] * 100).fillna(0)
-
     source_counts = df_source_chart['source_mapped'].value_counts(normalize=True).reset_index()
     source_counts.columns = ['source_mapped', 'percentage']
     source_counts['percentage'] *= 100
     source_counts = pd.merge(source_counts, source_agg, on='source_mapped', how='left')
     
-    # Formatação para o tooltip
-    source_counts['Faturamento_fmt'] = source_counts['Faturamento'].apply(lambda x: format_brazilian(x, "R$ {:,.2f}"))
-    source_counts['perc_mql_fmt'] = source_counts['perc_mql'].apply(lambda x: f"{format_brazilian(x, '{:.2f}')}%")
-    source_counts['Ticket_Medio_fmt'] = source_counts['Ticket Medio'].apply(lambda x: format_brazilian(x, "R$ {:,.2f}"))
-    source_counts['Taxa_Venda_fmt'] = source_counts['Taxa de Venda'].apply(lambda x: f"{format_brazilian(x, '{:.2f}')}%")
+    # Formata as novas colunas para o tooltip
+    source_counts['Ticket_Medio_fmt'] = source_counts['Ticket Médio'].apply(lambda x: format_brazilian(x, "R$ {:,.2f}"))
+    source_counts['Taxa_Venda_fmt'] = source_counts['Taxa de Venda'].apply(lambda x: f"{format_brazilian(x, '{:,.2f}')}%")
     source_counts['TM_Fechamento_fmt'] = source_counts['TM_Fechamento'].apply(lambda x: f"{format_brazilian(x, '{:,.1f}')} dias")
+    source_counts['perc_mql_fmt'] = source_counts['perc_mql'].apply(lambda x: f"{format_brazilian(x, '{:,.2f}')}%")
 
     source_counts['dummy_y'] = 'Fontes de Tráfego'
     source_counts.sort_values('percentage', ascending=False, inplace=True)
     
-    custom_data_cols = ['Leads', 'MQLs', 'Vendas', 'Faturamento_fmt', 'perc_mql_fmt', 'Ticket_Medio_fmt', 'Taxa_Venda_fmt', 'TM_Fechamento_fmt']
-    
-    fig_source = px.bar(source_counts, x='percentage', y='dummy_y', color='source_mapped', orientation='h', height=320,
-                        text=source_counts.apply(lambda row: f"{row['percentage']:.1f}%" if row['percentage'] > 2 else '', axis=1),
-                        color_discrete_map=color_map, hover_name='source_mapped', custom_data=custom_data_cols)
+    # Adiciona os novos dados ao custom_data
+    custom_data_cols = ['Leads', 'MQLs', 'Vendas', 'Faturamento', 'perc_mql_fmt', 'Ticket_Medio_fmt', 'Taxa_Venda_fmt', 'TM_Fechamento_fmt']
+    source_counts_display = source_counts.copy()
+    for col in custom_data_cols:
+        if col not in source_counts_display.columns:
+            source_counts_display[col] = 0 if col != 'Faturamento' else 'R$ 0,00'
 
-    fig_source.update_layout(title_text='', xaxis_title="", yaxis_title="", legend_title_text='', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='white', showlegend=True,
-                            xaxis=dict(showgrid=False, zeroline=False, showticklabels=True, dtick=5, ticksuffix='%', range=[0, 100], tickmode='linear'),
-                            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                            legend=dict(orientation="h", yanchor="bottom", y=-0.7, xanchor="center", x=0.5),
-                            margin=dict(b=180), hoverlabel=dict(font=dict(size=20)))
-
-    hovertemplate = (
-        '<b>%{hovertext}</b><br><br>'
-        'Leads: %{customdata[0]}<br>'
-        'MQLs: %{customdata[1]} (%{customdata[4]})<br>'
-        'Vendas: %{customdata[2]}<br>'
-        'Taxa de Venda: %{customdata[6]}<br>'
-        'Faturamento: %{customdata[3]}<br>'
-        'Ticket Médio: %{customdata[5]}<br>'
-        'T.M. Fechamento: %{customdata[7]}'
-        '<extra></extra>'
-    )
-    fig_source.update_traces(textposition='inside', textfont_size=12, textfont_color='white', hovertemplate=hovertemplate)
+    fig_source = px.bar(source_counts_display, x='percentage', y='dummy_y', color='source_mapped', orientation='h', height=320, text=source_counts_display.apply(lambda row: f"{row['percentage']:.1f}%" if row['percentage'] > 2 else '', axis=1), color_discrete_map=color_map, hover_name='source_mapped', custom_data=custom_data_cols)
     
+    fig_source.update_layout(title_text='', xaxis_title="", yaxis_title="", legend_title_text='', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='white', showlegend=True, xaxis=dict(showgrid=False, zeroline=False, showticklabels=True, dtick=5, ticksuffix='%', range=[0, 100], tickmode='linear'), yaxis=dict(showgrid=False, zeroline=False, showticklabels=False), legend=dict(orientation="h", yanchor="bottom", y=-0.7, xanchor="center", x=0.5), margin=dict(b=180), hoverlabel=dict(font=dict(size=20)))
+    
+    # Atualiza o template do hover para incluir as novas métricas
+    fig_source.update_traces(textposition='inside', textfont_size=12, textfont_color='white',
+                             hovertemplate=(
+                                 '<b>%{hovertext}</b><br><br>'
+                                 'Leads: %{customdata[0]}<br>'
+                                 'Vendas: %{customdata[2]}<br>'
+                                 'Taxa de Venda: %{customdata[6]}<br>'
+                                 'Faturamento: %{customdata[3]}<br>'
+                                 'Ticket Médio: %{customdata[5]}<br>'
+                                 'T.M. Fechamento: %{customdata[7]}<br>'
+                                 'MQLs: %{customdata[1]}<br>'
+                                 '% MQL: %{customdata[4]}<extra></extra>'
+                             ))
     st.plotly_chart(fig_source, use_container_width=True)
 else:
     st.info("Dados de `utm_source` não disponíveis para gerar o gráfico de fontes.")
@@ -1025,7 +1032,8 @@ kpis_historico_map = {
     "Investimento": "R$ {:,.2f}", "Vendas": "{:,.0f}", "Taxa de Venda": "{:.2f}%",
     "CAC": "R$ {:,.2f}", "Faturamento": "R$ {:,.2f}", "ROAS": "{:,.2f}x",
     "ROI": "{:,.2f}x", "Growth Rate": "{:,.2f}", "CPL": "R$ {:,.2f}",
-    "Leads": "{:,.0f}", "CPMQL": "R$ {:,.2f}", "MQL": "{:,.0f}", "Taxa de MQL": "{:.2f}%"
+    "Leads": "{:,.0f}", "CPMQL": "R$ {:,.2f}", "MQL": "{:,.0f}", "Taxa de MQL": "{:.2f}%",
+    "Ticket Médio": "R$ {:,.2f}", "T.M. Fechamento": "{:,.1f} dias"
 }
 kpi_options_chart = list(kpis_historico_map.keys())
 
@@ -1081,6 +1089,8 @@ if not df_leads_historico.empty:
 
     df_leads_copy['data_criacao'] = pd.to_datetime(df_leads_copy['data_criacao'], errors='coerce')
     df_leads_copy['data_fechamento_pl'] = pd.to_datetime(df_leads_copy['data_fechamento_pl'], errors='coerce')
+    df_leads_copy['dias_para_fechar'] = (df_leads_copy['data_fechamento_pl'] - df_leads_copy['data_criacao']).dt.days
+
 
     analysis_type = st.session_state.get('analysis_type_selector', 'Retroativo')
     date_grouping_col = 'data_criacao' if analysis_type == 'Retroativo' else 'data_fechamento_pl'
@@ -1094,7 +1104,8 @@ if not df_leads_historico.empty:
             'Leads': pd.NamedAgg(column='project_id_pl', aggfunc='count'),
             'MQL': pd.NamedAgg(column='qualificacao_pl', aggfunc=lambda x: (x == 'MQL').sum()),
             'Vendas': pd.NamedAgg(column='real_faturamento_venda_pl', aggfunc=lambda x: (x > 0).sum()),
-            'Faturamento': pd.NamedAgg(column='real_faturamento_venda_pl', aggfunc='sum')
+            'Faturamento': pd.NamedAgg(column='real_faturamento_venda_pl', aggfunc='sum'),
+            'T.M. Fechamento': pd.NamedAgg(column='dias_para_fechar', aggfunc='mean')
         }
         df_leads_mensal = df_leads_copy_filtered.groupby('mes_ano').agg(**agg_historico).reset_index()
 
@@ -1108,9 +1119,11 @@ if not df_leads_historico.empty:
             'Investimento': 'maior_e_melhor', 'Vendas': 'maior_e_melhor', 'Taxa de Venda': 'maior_e_melhor',
             'CAC': 'menor_e_melhor', 'Faturamento': 'maior_e_melhor', 'ROAS': 'maior_e_melhor',
             'ROI': 'maior_e_melhor', 'Growth Rate': 'maior_e_melhor', 'CPL': 'menor_e_melhor',
-            'Leads': 'maior_e_melhor', 'CPMQL': 'menor_e_melhor', 'MQL': 'maior_e_melhor', 'Taxa de MQL': 'maior_e_melhor'
+            'Leads': 'maior_e_melhor', 'CPMQL': 'menor_e_melhor', 'MQL': 'maior_e_melhor', 'Taxa de MQL': 'maior_e_melhor',
+            'Ticket Médio': 'maior_e_melhor', 'T.M. Fechamento': 'menor_e_melhor'
         }
 
+        df_performance_historico['Ticket Médio'] = (df_performance_historico['Faturamento'] / df_performance_historico['Vendas']).fillna(0)
         df_performance_historico['Taxa de Venda'] = (df_performance_historico['Vendas'] / df_performance_historico['Leads'] * 100).fillna(0)
         df_performance_historico['CAC'] = (df_performance_historico['Investimento'] / df_performance_historico['Vendas']).fillna(0)
         df_performance_historico['ROAS'] = (df_performance_historico['Faturamento'] / df_performance_historico['Investimento']).fillna(0)
@@ -1171,8 +1184,7 @@ with tab_colunas:
             fig_hist_bar.update_layout(
                 plot_bgcolor='rgba(42,42,42,1)', paper_bgcolor='rgba(0,0,0,0)',
                 font_color='white', yaxis_visible=False, legend_title_text='',
-                xaxis_title=None,
-                xaxis=dict(showgrid=False)
+                xaxis_title=None
             )
             
             for trace in fig_hist_bar.data:
@@ -1203,8 +1215,7 @@ with tab_linhas:
             fig_hist_line.update_layout(
                 plot_bgcolor='rgba(42,42,42,1)', paper_bgcolor='rgba(0,0,0,0)',
                 font_color='white', yaxis_visible=False, legend_title_text='',
-                xaxis_title=None,
-                xaxis=dict(showgrid=False)
+                xaxis_title=None
             )
             fig_hist_line.update_traces(text=None)
             for trace in fig_hist_line.data:
@@ -1223,23 +1234,27 @@ with tab_linhas:
 
             st.plotly_chart(fig_hist_line, use_container_width=True)
 
-control_cols = st.columns(3)
-with control_cols[0]:
-    st.radio(
-        "Tipo de Análise de Vendas", ["Retroativo", "Operacional"], index=0,
-        key="analysis_type_selector", on_change=lambda: st.rerun(),
-        help="**Retroativo**: Vendas contadas no mês de criação do lead. **Operacional**: Vendas contadas no mês de fechamento."
-    )
-with control_cols[1]:
-    st.multiselect(
-        "Selecione indicadores para o gráfico:", options=kpi_options_chart,
-        default=["ROI", "ROAS", "Growth Rate"], key="kpi_line_chart_selector"
-    )
-with control_cols[2]:
-    st.multiselect(
-        "Mostrar valores para:", options=st.session_state.get('kpi_line_chart_selector', []),
-        default=st.session_state.get('kpi_line_chart_selector', []), key="kpi_text_selector"
-    )
+# Controles do gráfico de histórico movidos para baixo
+st.radio(
+    "Tipo de Análise de Vendas", ["Retroativo", "Operacional"], index=0,
+    key="analysis_type_selector", on_change=lambda: st.rerun(),
+    help="**Retroativo**: Vendas contadas no mês de criação do lead. **Operacional**: Vendas contadas no mês de fechamento.",
+    horizontal=True
+)
+
+with st.form(key='graficos_form'):
+    control_cols = st.columns(2)
+    with control_cols[0]:
+        st.multiselect(
+            "Selecione indicadores para o gráfico:", options=kpi_options_chart,
+            default=["ROI", "ROAS", "Growth Rate"], key="kpi_line_chart_selector"
+        )
+    with control_cols[1]:
+        st.multiselect(
+            "Mostrar valores para (apenas gráfico de linhas):", options=st.session_state.get('kpi_line_chart_selector', []),
+            default=st.session_state.get('kpi_line_chart_selector', []), key="kpi_text_selector"
+        )
+    st.form_submit_button("Atualizar Gráficos")
 
 month_periods_to_display = pd.period_range(start=hist_start_date, end=hist_end_date, freq='M')
 
