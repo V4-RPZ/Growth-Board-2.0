@@ -36,7 +36,7 @@ except (KeyError, Exception) as e:
     st.stop()
 
 
-HR_SEPARATOR_STYLE = "<hr style='border-top: 2px solid #D33682; margin-top: 0px; margin-bottom: 25px;'>"
+HR_SEPARATOR_STYLE = "<hr style='border-top: 2px solid #D33682; margin-top: -10px; margin-bottom: 25px;'>"
 
 MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
 MESES_PT_ABBR = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
@@ -1365,4 +1365,5 @@ if conferidor_mode:
     display_conferidor_table(df_fb_ads_bq, "Facebook Ads (BQ)", 'project_id_fb')
     display_conferidor_table(df_fb_creatives_bq, "Facebook Creatives (BQ)", 'project_id_fbcrtv')
     st.markdown("---")
+
 
