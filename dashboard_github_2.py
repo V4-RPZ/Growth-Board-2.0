@@ -36,7 +36,7 @@ except (KeyError, Exception) as e:
     st.stop()
 
 
-HR_SEPARATOR_STYLE = "<hr style='border-top: 2px solid #D33682; margin-top: 25px; margin-bottom: 25px;'>"
+HR_SEPARATOR_STYLE = "<hr style='border-top: 2px solid #D33682; margin-top: 0px; margin-bottom: 25px;'>"
 
 MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
 MESES_PT_ABBR = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
@@ -252,7 +252,7 @@ def carregar_planilha_gs(url_planilha, colunas_map, nome_coluna_data_renomeada, 
         return pd.DataFrame()
 
 def render_persistent_sidebar():
-    st.sidebar.markdown("<div style='text-align: center;'><img src='https://i.postimg.cc/dVjMB4jK/LOGO-RPZ-BRANCO.png' width='250'></div>", unsafe_allow_html=True)
+    st.sidebar.markdown("<div style='text-align: center; margin-bottom: 20px;'><img src='https://i.postimg.cc/dVjMB4jK/LOGO-RPZ-BRANCO.png' width='250'></div>", unsafe_allow_html=True)
     
     if st.sidebar.button("Limpar Cache de Dados"):
         st.cache_data.clear()
@@ -1365,3 +1365,4 @@ if conferidor_mode:
     display_conferidor_table(df_fb_ads_bq, "Facebook Ads (BQ)", 'project_id_fb')
     display_conferidor_table(df_fb_creatives_bq, "Facebook Creatives (BQ)", 'project_id_fbcrtv')
     st.markdown("---")
+
