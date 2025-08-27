@@ -325,7 +325,7 @@ st.markdown("""
     .horizontal-scroll-container { display: flex; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 15px; -webkit-overflow-scrolling: touch; }
     .hist-kpi-card { background-color: #2A2A2A; border-radius: 8px; padding: 12px; flex: 0 0 280px; margin-right: 15px; display: flex; flex-direction: column; }
     .hist-kpi-card h3 { font-size: 1.2em; color: #D33682; margin-bottom: 10px; text-align: center; white-space: nowrap; }
-    .hist-kpi-card p { font-size: 0.9em; color: #E0E0E0; margin: 2px 0; }
+    .hist-kpi-card p { font-size: 0.9em; color: #E0E0E0; margin: 2px 0; line-height: 1.6; }
     .hist-kpi-card strong { color: #FFFFFF; }
     .hist-kpi-nodata { display: flex; align-items: center; justify-content: center; color: #888; font-style: italic; height: 100%; }
     @media (max-width: 768px) { h1 { font-size: 1.8rem; } h2 { font-size: 1.5rem; } }
@@ -839,11 +839,11 @@ if not df_pl_filtrado_intervalo.empty and "utm_source_pl" in df_pl_filtrado_inte
     source_counts.sort_values('percentage', ascending=False, inplace=True)
     
     # Adiciona os novos dados ao custom_data
-    custom_data_cols = ['Leads', 'MQLs', 'Vendas', 'Faturamento', 'perc_mql_fmt', 'Ticket_Medio_fmt', 'Taxa_Venda_fmt', 'TM_Fechamento_fmt']
+    custom_data_cols = ['Leads', 'MQLs', 'Vendas', 'Faturamento_fmt', 'perc_mql_fmt', 'Ticket_Medio_fmt', 'Taxa_Venda_fmt', 'TM_Fechamento_fmt']
     source_counts_display = source_counts.copy()
     for col in custom_data_cols:
         if col not in source_counts_display.columns:
-            source_counts_display[col] = 0 if col != 'Faturamento' else 'R$ 0,00'
+            source_counts_display[col] = 0 if col != 'Faturamento_fmt' else 'R$ 0,00'
 
     fig_source = px.bar(source_counts_display, x='percentage', y='dummy_y', color='source_mapped', orientation='h', height=320, text=source_counts_display.apply(lambda row: f"{row['percentage']:.1f}%" if row['percentage'] > 2 else '', axis=1), color_discrete_map=color_map, hover_name='source_mapped', custom_data=custom_data_cols)
     
@@ -1365,5 +1365,6 @@ if conferidor_mode:
     display_conferidor_table(df_fb_ads_bq, "Facebook Ads (BQ)", 'project_id_fb')
     display_conferidor_table(df_fb_creatives_bq, "Facebook Creatives (BQ)", 'project_id_fbcrtv')
     st.markdown("---")
+
 
 
