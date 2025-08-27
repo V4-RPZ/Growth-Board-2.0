@@ -843,7 +843,7 @@ if not df_pl_filtrado_intervalo.empty and "utm_source_pl" in df_pl_filtrado_inte
     source_counts_display = source_counts.copy()
     for col in custom_data_cols:
         if col not in source_counts_display.columns:
-            source_counts_display[col] = 0 if col != 'Faturamento_fmt' else 'R$ 0,00'
+            source_counts_display[col] = 0 if col != 'Faturamento' else 'R$ 0,00'
 
     fig_source = px.bar(source_counts_display, x='percentage', y='dummy_y', color='source_mapped', orientation='h', height=320, text=source_counts_display.apply(lambda row: f"{row['percentage']:.1f}%" if row['percentage'] > 2 else '', axis=1), color_discrete_map=color_map, hover_name='source_mapped', custom_data=custom_data_cols)
     
@@ -1365,6 +1365,7 @@ if conferidor_mode:
     display_conferidor_table(df_fb_ads_bq, "Facebook Ads (BQ)", 'project_id_fb')
     display_conferidor_table(df_fb_creatives_bq, "Facebook Creatives (BQ)", 'project_id_fbcrtv')
     st.markdown("---")
+
 
 
 
