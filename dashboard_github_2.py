@@ -252,7 +252,7 @@ def carregar_planilha_gs(url_planilha, colunas_map, nome_coluna_data_renomeada, 
         return pd.DataFrame()
 
 def render_persistent_sidebar():
-    st.sidebar.markdown("<div style='text-align: center;'><img src='https://i.postimg.cc/dVjMB4jK/LOGO-RPZ-BRANCO.png' width='250'></div>", unsafe_allow_html=True)
+    st.sidebar.markdown("<div style='text-align: center; margin-bottom: 20px;'><img src='https://i.postimg.cc/dVjMB4jK/LOGO-RPZ-BRANCO.png' width='250'></div>", unsafe_allow_html=True)
     
     if st.sidebar.button("Limpar Cache de Dados"):
         st.cache_data.clear()
