@@ -36,7 +36,7 @@ except (KeyError, Exception) as e:
     st.stop()
 
 
-HR_SEPARATOR_STYLE = "<hr style='border-top: 2px solid #D33682; margin-top: -10px; margin-bottom: 25px;'>"
+HR_SEPARATOR_STYLE = "<hr style='border-top: 2px solid #D33682; margin-top: 25px; margin-bottom: 25px;'>"
 
 MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
 MESES_PT_ABBR = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
@@ -252,7 +252,7 @@ def carregar_planilha_gs(url_planilha, colunas_map, nome_coluna_data_renomeada, 
         return pd.DataFrame()
 
 def render_persistent_sidebar():
-    st.sidebar.markdown("<div style='text-align: center; margin-bottom: 20px;'><img src='https://i.postimg.cc/dVjMB4jK/LOGO-RPZ-BRANCO.png' width='250'></div>", unsafe_allow_html=True)
+    st.sidebar.markdown("<div style='text-align: center;'><img src='https://i.postimg.cc/dVjMB4jK/LOGO-RPZ-BRANCO.png' width='250'></div>", unsafe_allow_html=True)
     
     if st.sidebar.button("Limpar Cache de Dados"):
         st.cache_data.clear()
@@ -325,7 +325,7 @@ st.markdown("""
     .horizontal-scroll-container { display: flex; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 15px; -webkit-overflow-scrolling: touch; }
     .hist-kpi-card { background-color: #2A2A2A; border-radius: 8px; padding: 12px; flex: 0 0 280px; margin-right: 15px; display: flex; flex-direction: column; }
     .hist-kpi-card h3 { font-size: 1.2em; color: #D33682; margin-bottom: 10px; text-align: center; white-space: nowrap; }
-    .hist-kpi-card p { font-size: 0.9em; color: #E0E0E0; margin: 2px 0; line-height: 1.6; }
+    .hist-kpi-card p { font-size: 0.9em; color: #E0E0E0; margin: 2px 0; }
     .hist-kpi-card strong { color: #FFFFFF; }
     .hist-kpi-nodata { display: flex; align-items: center; justify-content: center; color: #888; font-style: italic; height: 100%; }
     @media (max-width: 768px) { h1 { font-size: 1.8rem; } h2 { font-size: 1.5rem; } }
@@ -391,7 +391,7 @@ if not hist_start_date or not hist_end_date:
 
 # --- CARREGAMENTO DE DADOS DO BIGQUERY (COM BASE NOS FILTROS) ---
 df_google_kw_bq = fetch_data_from_bigquery(bq_client, BQ_DATASET_ID, BQ_TABLE_GKW, COLUNAS_BQ_KEYWORDS_MAP, data_selecionada_inicio, data_selecionada_fim, 'date', 'project_id', selected_project_id)
-df_gads_bq = fetch_data_from_bigquery(bq_client, BQ_DATASET_ID, BQ_TABLE_GADS, COLUNAS_BQ_GADS_MAP, data_selecionada_inicio, data_selecionada_fim, 'campaign_start_date', 'project_id', selected_project_id)
+df_gads_bq = fetch_data_from_bigquery(bq_client, BQ_DATASET_ID, BQ_TABLE_GADS, COLUNAS_BQ_GADS_MAP, data_selecionada_inicio, data_selecionada_fim, 'segments_date', 'project_id', selected_project_id)
 df_fb_ads_bq = fetch_data_from_bigquery(bq_client, BQ_DATASET_ID, BQ_TABLE_FBADS, COLUNAS_BQ_FBADS_MAP, data_selecionada_inicio, data_selecionada_fim, 'date_start', 'project_id', selected_project_id)
 df_fb_creatives_bq = fetch_data_from_bigquery(
     client=bq_client, dataset_id=BQ_DATASET_ID, table_id=BQ_TABLE_FBCRTV,
@@ -1045,7 +1045,7 @@ df_leads_historico = fetch_data_from_bigquery(
 )
 df_gads_historico = fetch_data_from_bigquery(
     bq_client, BQ_DATASET_ID, BQ_TABLE_GADS, COLUNAS_BQ_GADS_MAP,
-    hist_start_date_plus_one_month, hist_end_date, 'campaign_start_date', 'project_id', selected_project_id
+    hist_start_date_plus_one_month, hist_end_date, 'segments_date', 'project_id', selected_project_id
 )
 df_fb_ads_historico = fetch_data_from_bigquery(
     bq_client, BQ_DATASET_ID, BQ_TABLE_FBADS, COLUNAS_BQ_FBADS_MAP,
@@ -1365,9 +1365,3 @@ if conferidor_mode:
     display_conferidor_table(df_fb_ads_bq, "Facebook Ads (BQ)", 'project_id_fb')
     display_conferidor_table(df_fb_creatives_bq, "Facebook Creatives (BQ)", 'project_id_fbcrtv')
     st.markdown("---")
-
-
-
-
-
-
