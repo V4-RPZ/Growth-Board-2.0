@@ -67,7 +67,7 @@ COLUNAS_BQ_KEYWORDS_MAP = {
 }
 
 COLUNAS_BQ_GADS_MAP = {
-    'campaign_start_date': 'data_api_gads', 'metrics_cost': 'cost_gads',
+    'segments_date': 'data_api_gads', 'metrics_cost': 'cost_gads',
     'project_id': 'project_id_gads', 'metrics_impressions': 'impressions_gads',
     'metrics_clicks': 'clicks_gads', 'campaign_name': 'campaign_name_gads',
     'campaign_id': 'campaign_id_gads',
@@ -1365,6 +1365,7 @@ if conferidor_mode:
     display_conferidor_table(df_fb_ads_bq, "Facebook Ads (BQ)", 'project_id_fb')
     display_conferidor_table(df_fb_creatives_bq, "Facebook Creatives (BQ)", 'project_id_fbcrtv')
     st.markdown("---")
+
 
 
 
