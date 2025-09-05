@@ -839,7 +839,7 @@ if not df_pl_filtrado_intervalo.empty and "utm_source_pl" in df_pl_filtrado_inte
     source_counts.sort_values('percentage', ascending=False, inplace=True)
     
     # Adiciona os novos dados ao custom_data
-    custom_data_cols = ['Leads', 'MQLs', 'Vendas', 'Faturamento', 'perc_mql_fmt', 'Ticket_Medio_fmt', 'Taxa_Venda_fmt', 'TM_Fechamento_fmt']
+    custom_data_cols = ['Leads', 'MQLs', 'Vendas', 'Faturamento_fmt', 'perc_mql_fmt', 'Ticket_Medio_fmt', 'Taxa_Venda_fmt', 'TM_Fechamento_fmt']
     source_counts_display = source_counts.copy()
     for col in custom_data_cols:
         if col not in source_counts_display.columns:
@@ -1365,3 +1365,4 @@ if conferidor_mode:
     display_conferidor_table(df_fb_ads_bq, "Facebook Ads (BQ)", 'project_id_fb')
     display_conferidor_table(df_fb_creatives_bq, "Facebook Creatives (BQ)", 'project_id_fbcrtv')
     st.markdown("---")
+
